@@ -1,0 +1,131 @@
+--- a/AltStore.xcodeproj/project.pbxproj
++++ b/AltStore.xcodeproj/project.pbxproj
+@@ -875,7 +875,7 @@
+ 		BF0241A922F29CCD00129732 /* UserDefaults+AltServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+AltServer.swift"; sourceTree = "<group>"; };
+ 		BF08858222DE795100DE9F1E /* MyAppsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAppsViewController.swift; sourceTree = "<group>"; };
+ 		BF08858422DE7EC800DE9F1E /* UpdateCollectionViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCollectionViewCell.swift; sourceTree = "<group>"; };
+-		BF088D322501A4FF008082D9 /* OpenSSL.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:67RAULRX93:Marcin Krzyzanowski"; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = Dependencies/AltSign/Dependencies/OpenSSL/Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
++		BF088D322501A4FF008082D9 /* OpenSSL.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = OpenSSL.xcframework; path = Dependencies/AltSign/Dependencies/OpenSSL/Frameworks/OpenSSL.xcframework; sourceTree = "<group>"; };
+ 		BF0C4EBC22A1BD8B009A2DD7 /* AppManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
+ 		BF0DCA652433BDF500E3A595 /* AnalyticsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsManager.swift; sourceTree = "<group>"; };
+ 		BF10EB33248730750055E6DB /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+@@ -3011,6 +3011,7 @@
+ 			);
+ 			mainGroup = BFD247612284B9A500981D42;
+ 			packageReferences = (
++				F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */,
+ 				D58D5F2C26DFE68E00E55E38 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */,
+ 				D5FB7A2C2AA2859400EF863D /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+ 				D535CEE62BE95D4C00F96119 /* XCRemoteSwiftPackageReference "SwiftClient" */,
+@@ -4895,6 +4896,10 @@
+ /* End XCConfigurationList section */
+ 
+ /* Begin XCLocalSwiftPackageReference section */
++		F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */ = {
++			isa = XCLocalSwiftPackageReference;
++			relativePath = Dependencies/AltSign;
++		};
+ 		CA1DE71000000000000005A0 /* XCLocalSwiftPackageReference "Dependencies/idevice/swift" */ = {
+ 			isa = XCLocalSwiftPackageReference;
+ 			relativePath = Dependencies/idevice/swift;
+@@ -4904,42 +4909,42 @@
+ /* Begin XCRemoteSwiftPackageReference section */
+ 		823E33C93059B78900EBB2DE /* XCRemoteSwiftPackageReference "AnisetteKit" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+-			repositoryURL = "https://github.com/altstoreio/AnisetteKit";
++			repositoryURL = "file:///tmp/spm-pkgs/AnisetteKit";
+ 			requirement = {
+ 				kind = revision;
+-				revision = 1f5a7e36553cc865b873f222b87a6486c0bcc7bf;
++				revision = 564025abde0e68a62536ae3a92b712d34994b1cd;
+ 			};
+ 		};
+ 		D535CEE62BE95D4C00F96119 /* XCRemoteSwiftPackageReference "SwiftClient" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+-			repositoryURL = "https://github.com/TelemetryDeck/SwiftClient";
++			repositoryURL = "file:///tmp/spm-pkgs/SwiftClient";
+ 			requirement = {
+-				kind = upToNextMajorVersion;
+-				minimumVersion = 2.9.3;
++				kind = revision;
++				revision = 66efb64de90b21a617eb53ad2fcf53af8a0056ff;
+ 			};
+ 		};
+ 		D56435E42E2AC35C007D1935 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+-			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess.git";
++			repositoryURL = "file:///tmp/spm-pkgs/KeychainAccess";
+ 			requirement = {
+-				kind = upToNextMinorVersion;
+-				minimumVersion = 4.2.0;
++				kind = revision;
++				revision = 02f076a0273db15c844a93f6f01733a0c0344c88;
+ 			};
+ 		};
+ 		D58D5F2C26DFE68E00E55E38 /* XCRemoteSwiftPackageReference "LaunchAtLogin" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+-			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin.git";
++			repositoryURL = "file:///tmp/spm-pkgs/LaunchAtLogin";
+ 			requirement = {
+-				kind = upToNextMajorVersion;
+-				minimumVersion = 4.1.0;
++				kind = revision;
++				revision = 6da46aec18a89104347e91de272c6ac48688aa1a;
+ 			};
+ 		};
+ 		D5FB7A2C2AA2859400EF863D /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+-			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
++			repositoryURL = "file:///tmp/spm-pkgs/swift-argument-parser";
+ 			requirement = {
+-				kind = upToNextMinorVersion;
+-				minimumVersion = 1.2.3;
++				kind = revision;
++				revision = 4101f4498508f279d5a88af1683466dbfc46d13e;
+ 			};
+ 		};
+ /* End XCRemoteSwiftPackageReference section */
+@@ -4962,14 +4967,17 @@
+ 		};
+ 		BF088D0E25019ABA008082D9 /* AltSign-Static */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Static";
+ 		};
+ 		BF088D352501A821008082D9 /* AltSign-Dynamic */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Dynamic";
+ 		};
+ 		BF42345B251024B0006D1EB2 /* AltSign-Static */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Static";
+ 		};
+ 		CA1DE71000000000000005A1 /* IDevice */ = {
+@@ -4979,6 +4987,7 @@
+ 		};
+ 		D52DD35D2AAA89A600A7F2B6 /* AltSign-Dynamic */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Dynamic";
+ 		};
+ 		D535CEE72BE95D4C00F96119 /* TelemetryClient */ = {
+@@ -4988,14 +4997,17 @@
+ 		};
+ 		D53FB4C0305372F6000546E8 /* AltSign-Static */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Static";
+ 		};
+ 		D53FB4C330537302000546E8 /* AltSign-Static */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Static";
+ 		};
+ 		D561B2EA28EF5A4F006752E4 /* AltSign-Dynamic */ = {
+ 			isa = XCSwiftPackageProductDependency;
++			package = F233950950E80358ABF9F9F4 /* XCLocalSwiftPackageReference "Dependencies/AltSign" */;
+ 			productName = "AltSign-Dynamic";
+ 		};
+ 		D56435E52E2ACC89007D1935 /* KeychainAccess */ = {
