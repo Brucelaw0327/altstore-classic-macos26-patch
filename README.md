@@ -129,15 +129,16 @@ osascript -e 'quit app "AltServer"'; open /Applications/AltServer.app
 
 Sparkle 只在启动时读这些键，必须重启一次 app。
 
-更彻底的做法是让它自认最新（连手动「检查更新」都不提示）：
+更彻底的做法是让它自认最新（连手动「检查更新」都不提示）—— 注意签名顺序，**先签内层 helper 再签外层**：
 
 ```bash
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.8.99" /Applications/AltServer.app/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 9999" /Applications/AltServer.app/Contents/Info.plist
-codesign --force --deep --sign - --options runtime /Applications/AltServer.app
+codesign --force --sign - --options runtime /Applications/AltServer.app/Contents/Library/LoginItems/LaunchAtLoginHelper.app
+codesign --force --sign - --options runtime /Applications/AltServer.app
 ```
 
-改过 Info.plist 原签名必然失效，必须重签。
+改过 Info.plist 原签名必然失效，必须重签。这里不建议用 `--deep`：Xcode 构建出来的 `LaunchAtLoginHelper.app` 本身就是 `invalid Info.plist` 状态（它内层 info 在签名后被改写），`--deep` 不能把它纠正过来，显式先签内层才能让 `codesign --verify --deep --strict` 全绿。
 
 **排错时先认版本**，不要急着怀疑补丁：
 
