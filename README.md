@@ -106,13 +106,57 @@ AltSign 的请求头 `X-MMe-Client-Info` 与 UA 都取自这份数据（`anisett
 
 ---
 
-## 5. 已知副作用
+## 5. 装完之后：关掉 Sparkle 自动更新 ★
+
+**这一步不能省，否则补丁会在某天被静默覆盖回 503。**
+
+自编译版的版本号来自源码，写死在 `project.pbxproj`：
+
+```
+MARKETING_VERSION      = 1.8.2      # 编出来就是 1.8.2
+CURRENT_PROJECT_VERSION = 99        # build 99
+```
+
+而官方最新发布是 **1.8.4**，Sparkle 的更新源是 `https://altstore.io/altserver/sparkle-macos.xml`。于是自编译版会被 Sparkle 判定为"需要更新"，一旦装上官方 1.8.4，`#available(macOS 27)` 那道门槛就回来了 —— 现象和"补丁没生效"完全一样（HTTP 503），但原因和责任完全不同。
+
+装完立刻执行：
+
+```bash
+defaults write com.rileytestut.AltServer SUEnableAutomaticChecks -bool false
+defaults write com.rileytestut.AltServer SUSkippedVersion -string "1.8.4"
+osascript -e 'quit app "AltServer"'; open /Applications/AltServer.app
+```
+
+Sparkle 只在启动时读这些键，必须重启一次 app。
+
+更彻底的做法是让它自认最新（连手动「检查更新」都不提示）：
+
+```bash
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.8.99" /Applications/AltServer.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 9999" /Applications/AltServer.app/Contents/Info.plist
+codesign --force --deep --sign - --options runtime /Applications/AltServer.app
+```
+
+改过 Info.plist 原签名必然失效，必须重签。
+
+**排错时先认版本**，不要急着怀疑补丁：
+
+```bash
+defaults read /Applications/AltServer.app/Contents/Info.plist CFBundleShortVersionString
+```
+
+- `1.8.2` → 是你的自编译版，503 就往代理 / anisette 服务器方向查
+- `1.8.4` → 已被官方版覆盖，补丁没了，装回自编译版
+
+---
+
+## 6. 已知副作用
 
 登录时 AltStore 弹 **"Multiple AltServers Not Supported"**：换 AltServer 实例 = 换签名证书，旧 AltServer 装的 App 无法刷新。点 Continue，用新 AltServer 重装即可。免费账号有证书/App ID 额度，必要时在 AltStore 设置里清理旧证书。
 
 ---
 
-## 6. 产物
+## 7. 产物
 
 ```
 AltServer.app   27 MB   x86_64   adhoc + hardened runtime
@@ -121,7 +165,7 @@ AltServer.app   27 MB   x86_64   adhoc + hardened runtime
 
 ---
 
-## 7. License
+## 8. License
 
 本仓库内容是从 [rileytestut/AltStore](https://github.com/rileytestut/AltStore)（classic 分支）派生的补丁与文档，`files/` 下的文件为上游源码的修改版本，因此沿用 **AGPLv3**（见 `LICENSE`）。不包含任何预编译二进制。
 
