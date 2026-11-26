@@ -1,23 +1,33 @@
 # AltServer 自编译：让 AltStore 在 macOS 26 / Intel 黑苹果上重新能登录
 
-2026-11-24 实测通过：自编译 AltServer 在 macOS 26.7.1（x86_64 / AMD 黑苹果 / OpenCore 1.0.8 / MacBookPro16,4）上成功登录 Apple ID，并安装 1.25 GB IPA。
+2026-11-26 实测通过：自编译 AltServer 在 macOS 26.7.1 x86_64 上完成 Apple ID 登录 → 2FA 短信 → 安装/刷新全流程。**本机 AOSKit 的 ADI 有效，远程 anisette 只作兜底。**
 
 ---
 
-## 1. 根因（一句话）
+## 1. 根因（按出现顺序，共三个）
 
-**AltStore classic 源码里已经写好了远程 anisette v3 客户端，但被 `if #available(macOS 27, *)` 挡住了。**
+| # | 故障 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 官方 1.8.4 在 macOS 26 上只能走 AOSKit，且无兜底 | `if #available(macOS 27, *)` 把已写好的远程客户端锁死；Intel 机器上不了 27 | **AOSKit 优先，失败才回落远程 anisette v3** |
+| 2 | 认证请求拿到 **503 + 190 字节** | `X-MMe-Client-Info` 用了 `<macOS;…>`，Apple 边缘直接丢弃（只有 `Mac OS X` 能过） | `osName` 恒为 `"Mac OS X"`（AltStore#1875） |
+| 3 | 请求短信验证码拿到 **415** | AltSign 用 XML plist 发 SMS 请求，Apple 现在要 JSON | 换 `PUT /auth/verify/phone` + JSON body（AltSign#62 / #1844） |
 
-Apple 从 2026-10-14 起拒绝声明 Android 身份的 anisette，返回 503 + 472 字节 HTML；本机 AOSKit 生成的 ADI 也被一并拒绝。AltStore 1.8.4 为此加了 `RemoteAnisetteDataFetcher`（走 anisette v3 服务器），但只在 macOS 27+ 启用。于是：
+**重要更正**：早期判断“本机 AOSKit 的 ADI 被 Apple 拒绝”是**错的** —— 那次实验混入了请求头变量。实际 ADI 一直是好的，Alice 用本机路径一次通过，远程兜底未被触发。
 
-- 官方 1.8.4 在 macOS 26 上 → 继续走 AOSKit → 503
-- 升级到 macOS 27 → 才切远程 anisette（但 Intel 机器上不了 27）
-
-**补丁本体只有一行**：把门槛从 27 降到 13（远程 anisette 客户端本身只要 macOS 13）。
+**190 字节响应是边缘丢弃的指纹**，和“凭据错误”的 503 完全不是一回事；排错时先看字节数。
 
 ```swift
--        if #available(macOS 27, *)
-+        if #available(macOS 13, *) // PATCHED: remote anisette only needs 13+
+// requestAnisetteData: 先把本机 AOSKit 作为主路径，失败才回落远程
+self.requestAnisetteDataFromAOSKit { result in
+    switch result {
+    case .success(let data): completion(.success(data))
+    case .failure(let e):
+        // fall back to RemoteAnisetteDataFetcher (macOS 13+)
+    }
+}
+
+// requestAnisetteDataFromAOSKit 内
+let osName = "Mac OS X"    // 原: (majorVersion < 11) ? "Mac OS X" : "macOS"
 ```
 
 这条也是"为什么必须在 macOS 26 上自编译"的全部理由：官方二进制里这段逻辑存在但不可达。

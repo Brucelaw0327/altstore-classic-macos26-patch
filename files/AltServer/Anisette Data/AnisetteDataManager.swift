@@ -1,0 +1,255 @@
+//
+//  AnisetteDataManager.swift
+//  AltServer
+//
+//  Created by Riley Testut on 11/16/19.
+//  Copyright © 2019 Riley Testut. All rights reserved.
+//
+
+import Foundation
+import OSLog
+
+private extension Bundle
+{
+    struct ID
+    {
+        static let mail = "com.apple.mail"
+    }
+}
+
+private extension ALTAnisetteData
+{
+    func sanitize(byReplacingBundleID bundleID: String)
+    {
+        guard let range = self.deviceDescription.lowercased().range(of: "(" + bundleID.lowercased()) else { return }
+        
+        var adjustedDescription = self.deviceDescription[..<range.lowerBound]
+        adjustedDescription += "(com.apple.akd/1.0)>"
+        
+        self.deviceDescription = String(adjustedDescription)
+    }
+}
+
+@objc private protocol AOSUtilitiesProtocol
+{
+    static var machineSerialNumber: String? { get }
+    static var machineUDID: String? { get }
+    
+    static func retrieveOTPHeadersForDSID(_ dsid: String) -> [String: Any]?
+    
+    // Non-static versions used for respondsToSelector:
+    var machineSerialNumber: String? { get }
+    var machineUDID: String? { get }
+    func retrieveOTPHeadersForDSID(_ dsid: String) -> [String: Any]?
+}
+
+class AnisetteDataManager: NSObject
+{
+    static let shared = AnisetteDataManager()
+    
+    private var anisetteDataCompletionHandlers: [String: (Result<ALTAnisetteData, Error>) -> Void] = [:]
+    private var anisetteDataTimers: [String: Timer] = [:]
+    
+    private override init()
+    {
+        super.init()
+        
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(AnisetteDataManager.handleAnisetteDataResponse(_:)), name: Notification.Name("com.rileytestut.AltServer.AnisetteDataResponse"), object: nil)
+    }
+    
+    func requestAnisetteData(_ completion: @escaping (Result<ALTAnisetteData, Error>) -> Void)
+    {
+        // PATCHED 2026-11-26: local AOSKit is primary, remote anisette v3 is the fallback.
+        // The Mail plug-in path (removed in macOS 12) and requestAnisetteDataLocally are
+        // intentionally not used.
+        self.requestAnisetteDataFromAOSKit { (result) in
+            switch result
+            {
+            case .success(let anisetteData):
+                completion(.success(anisetteData))
+                
+            case .failure(let aosKitError):
+                Logger.main.error("Local AOSKit anisette failed: \(aosKitError.localizedDescription, privacy: .public). Falling back to remote anisette.")
+                
+                if #available(macOS 13, *)
+                {
+                    Task {
+                        do
+                        {
+                            let anisetteData = try await RemoteAnisetteDataFetcher.shared.fetchAnisetteData()
+                            ALTAppleAPI.shared.authenticationUserAgent = anisetteData.userAgent
+                            completion(.success(anisetteData.makeAnisetteData()))
+                        }
+                        catch
+                        {
+                            Logger.main.error("Remote anisette fallback failed: \(error.localizedDescription, privacy: .public)")
+                            completion(.failure(error))
+                        }
+                    }
+                }
+                else
+                {
+                    completion(.failure(aosKitError))
+                }
+            }
+        }
+    }
+    
+    func resyncAnisetteData(sim: String, completion: @escaping (Result<ALTAnisetteData, Error>) -> Void)
+    {
+        // PATCHED: allow resync on macOS 26 (remote resync requires macOS 13+)
+        guard #available(macOS 13, *) else {
+            completion(.failure(AnisetteError.remoteServerUnavailable()))
+            return
+        }
+        
+        Task {
+            do
+            {
+                let anisetteData = try await RemoteAnisetteDataFetcher.shared.resync(sim: sim)
+                ALTAppleAPI.shared.authenticationUserAgent = anisetteData.userAgent
+                completion(.success(anisetteData.makeAnisetteData()))
+            }
+            catch
+            {
+                completion(.failure(error))
+            }
+        }
+    }
+}
+
+private extension AnisetteDataManager
+{
+    func requestAnisetteDataFromAOSKit(completion: @escaping (Result<ALTAnisetteData, Error>) -> Void)
+    {
+        do
+        {
+            let aosKitURL = URL(fileURLWithPath: "/System/Library/PrivateFrameworks/AOSKit.framework")
+            
+            guard let aosKit = Bundle(url: aosKitURL) else { throw AnisetteError.aosKitFailure() }
+            try aosKit.loadAndReturnError()
+            
+            guard let AOSUtilitiesClass = NSClassFromString("AOSUtilities"),
+                  AOSUtilitiesClass.responds(to: #selector(AOSUtilitiesProtocol.retrieveOTPHeadersForDSID(_:))),
+                  AOSUtilitiesClass.responds(to: #selector(getter: AOSUtilitiesProtocol.machineSerialNumber)),
+                  AOSUtilitiesClass.responds(to: #selector(getter: AOSUtilitiesProtocol.machineUDID))
+            else { throw AnisetteError.aosKitFailure() }
+            
+            let AOSUtilities = unsafeBitCast(AOSUtilitiesClass, to: AOSUtilitiesProtocol.Type.self)
+            
+            // -2 = Production environment (via https://github.com/ionescu007/Blackwood-4NT)
+            guard let requestHeaders = AOSUtilities.retrieveOTPHeadersForDSID("-2") else { throw AnisetteError.missingValue("oneTimePassword") }
+            
+            guard let machineID = requestHeaders["X-Apple-MD-M"] as? String else { throw AnisetteError.missingValue("machineID") }
+            guard let oneTimePassword = requestHeaders["X-Apple-MD"] as? String else { throw AnisetteError.missingValue("oneTimePassword") }
+            
+            guard let deviceID = AOSUtilities.machineUDID else { throw AnisetteError.missingValue("deviceUniqueIdentifier") }
+            guard let localUserID = deviceID.data(using: .utf8)?.base64EncodedString() else { throw AnisetteError.missingValue("localUserID") }
+            
+            let serialNumber = AOSUtilities.machineSerialNumber ?? "C02LKHBBFD57" // serialNumber can be nil, so provide valid fallback serial number.
+            let routingInfo: UInt64 = 84215040 // Other known values: 17106176, 50660608
+            
+            let osVersion: OperatingSystemVersion
+            let buildVersion: String
+            
+            if let build = ProcessInfo.processInfo.operatingSystemBuildVersion
+            {
+                osVersion = ProcessInfo.processInfo.operatingSystemVersion
+                buildVersion = build
+            }
+            else
+            {
+                // Unknown build, so fall back to known valid macOS version.
+                osVersion = OperatingSystemVersion(majorVersion: 13, minorVersion: 4, patchVersion: 0)
+                buildVersion = "22F66"
+            }
+            
+            let deviceModel = ProcessInfo.processInfo.deviceModel ?? "iMac21,1"
+            // PATCHED (AltStore#1875): Apple's GrandSlam edge silently drops any POST whose
+            // X-MMe-Client-Info contains "<macOS;…>" (HTTP 503, 190-byte body). Only the exact
+            // spelling "Mac OS X" passes; "MacOS/macos/OSX/Darwin" get 403. Native Apple
+            // frameworks still report "Mac OS X", so always use that.
+            let osName = "Mac OS X"
+            
+            let serverFriendlyDescription = "<\(deviceModel)> <\(osName);\(osVersion.stringValue);\(buildVersion)> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
+            
+            let anisetteData = ALTAnisetteData(machineID: machineID,
+                                               oneTimePassword: oneTimePassword,
+                                               localUserID: localUserID,
+                                               routingInfo: routingInfo,
+                                               deviceUniqueIdentifier: deviceID,
+                                               deviceSerialNumber: serialNumber,
+                                               deviceDescription: serverFriendlyDescription,
+                                               date: Date(),
+                                               locale: .current,
+                                               timeZone: .current)
+            completion(.success(anisetteData))
+        }
+        catch
+        {
+            completion(.failure(error))
+        }
+    }
+    
+    // DEPRECATED 2026-11-26: not called any more — Mail plug-ins (.mailbundle) were
+    // removed in macOS 12, so this path only ever produced a 1-second timeout.
+    func requestAnisetteDataFromPlugin(completion: @escaping (Result<ALTAnisetteData, Error>) -> Void)
+    {
+        let requestUUID = UUID().uuidString
+        self.anisetteDataCompletionHandlers[requestUUID] = completion
+        
+        let timer = Timer(timeInterval: 1.0, repeats: false) { (timer) in
+            self.finishRequest(forUUID: requestUUID, result: .failure(ALTServerError(.pluginNotFound)))
+        }
+        self.anisetteDataTimers[requestUUID] = timer
+        
+        RunLoop.main.add(timer, forMode: .default)
+        
+        DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.rileytestut.AltServer.FetchAnisetteData"), object: nil, userInfo: ["requestUUID": requestUUID], options: .deliverImmediately)
+    }
+    
+    // DEPRECATED 2026-11-26: not called any more — no call site anywhere in the project.
+    func requestAnisetteDataLocally(completion: @escaping (Result<ALTAnisetteData, Error>) -> Void)
+    {
+        Task<Void, Never> {
+            do
+            {
+                let anisetteData = try await LocalAnisetteDataManager.shared.fetchAnisetteData()
+                completion(.success(anisetteData))
+            }
+            catch
+            {
+                completion(.failure(error))
+            }
+        }
+    }
+    
+    @objc func handleAnisetteDataResponse(_ notification: Notification)
+    {
+        guard let userInfo = notification.userInfo, let requestUUID = userInfo["requestUUID"] as? String else { return }
+                
+        if
+            let archivedAnisetteData = userInfo["anisetteData"] as? Data,
+            let anisetteData = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ALTAnisetteData.self, from: archivedAnisetteData)
+        {
+            anisetteData.sanitize(byReplacingBundleID: Bundle.ID.mail)
+            self.finishRequest(forUUID: requestUUID, result: .success(anisetteData))
+        }
+        else
+        {
+            self.finishRequest(forUUID: requestUUID, result: .failure(ALTServerError(.invalidAnisetteData)))
+        }
+    }
+    
+    func finishRequest(forUUID requestUUID: String, result: Result<ALTAnisetteData, Error>)
+    {
+        let completionHandler = self.anisetteDataCompletionHandlers[requestUUID]
+        self.anisetteDataCompletionHandlers[requestUUID] = nil
+        
+        let timer = self.anisetteDataTimers[requestUUID]
+        self.anisetteDataTimers[requestUUID] = nil
+        
+        timer?.invalidate()
+        completionHandler?(result)
+    }
+}
